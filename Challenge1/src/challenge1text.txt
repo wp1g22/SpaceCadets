@@ -1,0 +1,81 @@
+import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
+
+public class Main {
+    public static void main(String[] args) {
+        /**
+         * Asks for user input and creates objects
+         */
+        System.out.println("Please enter a valid UoS emailID and the corresponding name will be output:");
+        InputStreamReader inputStream = new InputStreamReader(System.in);
+        BufferedReader bufferedReaderInput = new BufferedReader(inputStream);
+
+        /**
+         * Using try catch block otherwise exception is thrown bc Java?
+         */
+        try {
+            /**
+             * Gets user input using bufferredReader object
+             * Concatinates input to url
+             */
+            String userInput = bufferedReaderInput.readLine();
+            String webPageAddress = "https://www.ecs.soton.ac.uk/people/" + userInput;
+
+            /**
+             * Creates URl from input string
+             * Creates bufferedReader object set up to read from URL
+             */
+            URL url = new URL(webPageAddress);
+            InputStreamReader readerURL = new InputStreamReader(url.openStream());
+            BufferedReader bufferedReaderURl = new BufferedReader(readerURL);
+
+            /**
+             * While there is still lines to be read from the webpage, if the line contains that, the line is saved
+             */
+            String lineFromURL = bufferedReaderURl.readLine();
+            String savedLine = new String();
+            while(lineFromURL != null){
+                if(lineFromURL.contains("<meta property=\"og:title\"")){
+                    savedLine = lineFromURL;
+                }
+                lineFromURL = bufferedReaderURl.readLine();
+            }
+
+            /**
+             * Ouputs the name with some formatting
+             */
+            if(savedLine == null || savedLine.isEmpty()){
+                System.out.println("No name found.");
+            }
+            else{
+                String name = savedLine.substring(35, savedLine.length() - 4);
+                System.out.println("Name: " + name);
+                System.out.println("Would you like to output anagrams for this name from wordsmith? (y or n)");
+                userInput = bufferedReaderInput.readLine();
+                if(userInput.equalsIgnoreCase("y")){
+                    URL anagramURL = new URL("https://new.wordsmith.org/anagram/anagram.cgi?anagram=" +name.replace(' ', '+') + "&t=500&a=n");
+                    InputStreamReader readerAnagramURL = new InputStreamReader(anagramURL.openStream());
+                    BufferedReader bufferedReaderURLAnagram = new BufferedReader(readerAnagramURL);
+                    lineFromURL = bufferedReaderURLAnagram.readLine();
+                    while( lineFromURL != null ){
+                        if(lineFromURL.contains("found. Displaying first")|| lineFromURL.contains("found. Displaying all")){
+                            lineFromURL = bufferedReaderURLAnagram.readLine();
+                            lineFromURL = bufferedReaderURLAnagram.readLine();
+                            while(!lineFromURL.contains("document.body.style.cursor='default';")){
+                                System.out.println(lineFromURL.substring(0,lineFromURL.length() - 4));
+                                lineFromURL = bufferedReaderURLAnagram.readLine();
+                            }
+                        }
+                        lineFromURL = bufferedReaderURLAnagram.readLine();
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Failed");
+            throw new RuntimeException(e);
+        }
+
+
+    }
+}
