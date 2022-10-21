@@ -1,0 +1,177 @@
+import java.io.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+
+public class BareBonesInterpreter {
+    private static HashMap<String, Integer> variables;//represents all currently accessible variables at any given state in time in the program
+    public static void main(String[] args) {
+        variables = new HashMap<>();
+        System.out.println("Please enter the name of a text file to interpret:");
+        String filename = getInput();
+        String fileRead = readFromTextFile(filename);
+        String[] inputCode = fileRead.split(";");
+        executeCode(inputCode);
+    }
+
+    /**
+     * A recursive method which executes each statement one by one, if the call is an iterative structure then the method calls itself on the lines of code within the structure
+     * @param statements A list of all the statements
+     *
+     */
+    private static void executeCode(String[] statements){
+        ArrayList<String> localVariables = new ArrayList<>();//Arraylist of local variables so that when it has finished executing they can be removed from the currently accessible variables
+        for (int i = 0; i < statements.length; i++) {
+            String statement = statements[i];
+            statement = statement.stripLeading();
+            String[] statementParts = statement.split(" ");
+            switch (statementParts[0]) {
+                case "clear" -> {
+                    if (statementParts.length != 2) {
+                        throw new RuntimeException("Error, invalid syntax on line " + i);
+                    }
+                    if (addOrUpdateVariable(statementParts[1], 0)) {//if the variable did not already exist (its local) then it is added to the arraylist to be removed at the end
+                        localVariables.add(statementParts[1]);
+                    }
+                }
+                case "incr" -> {
+                    if (statementParts.length != 2) {
+                        throw new RuntimeException("Error, invalid syntax on line " + i);
+                    }
+                    if (incrementOrCreateVariable(statementParts[1], 1)) {//if the variable did not already exist (its local) then it is added to the arraylist to be removed at the end
+                        localVariables.add(statementParts[1]);
+                    }
+                }
+                case "decr" -> {
+                    if (statementParts.length != 2) {
+                        throw new RuntimeException("Error, invalid syntax on line " + i);
+                    }
+                    if (incrementOrCreateVariable(statementParts[1], -1)) {//if the variable did not already exist (its local) then it is added to the arraylist to be removed at the end
+                        localVariables.add(statementParts[1]);
+                    }
+                }
+                case "while" -> {
+                    if (!(statementParts.length == 5 || statementParts[4].equals("do") || statementParts[2].equals("not"))) {
+                        throw new RuntimeException("Error, invalid syntax on line " + i);
+                    }
+                    int loopCount = 1;//counts the number of while loops that are nested
+                    int iterationCounter = 1;//counts the number of iterations/statements that have been iterated through
+                    ArrayList<String> linesInWhileLoop = new ArrayList<>();//all the lines that are within the current while loop
+                    String nextStatement;
+                    while (loopCount > 0) {//while the end statement of this while loop has not been reached
+                        nextStatement = statements[i + iterationCounter].stripLeading();
+                        if (nextStatement.split(" ")[0].equals("while")) {//if the statement is a while loop (there is a nested one) then there will be also another end statement later that needs to be accounted for so increase loopCount
+
+                            loopCount++;
+                            linesInWhileLoop.add(nextStatement);
+                        } else if (nextStatement.equals("end")) {//if the statement is end either the current while loop has ended or a nested one has ended, we don't know, so we just decrement the loop counter variable
+                            loopCount--;
+                            if (loopCount != 0) {
+                                linesInWhileLoop.add(nextStatement);//if the end statement is not from the current while loop then add it
+                            }
+                        } else {
+                            linesInWhileLoop.add(nextStatement);
+                        }
+                        iterationCounter++;
+                    }
+                    i += iterationCounter - 1;
+                    boolean removeCounter = false;
+                    if (!variables.containsKey(statementParts[1])) {//the count variable used by the while loop should not be accessible outside it, so it is removed from variables after this while loop has stopped iterating
+                        removeCounter = true;
+                        variables.put(statementParts[1], 0);
+                    }
+                    String[] linesInWhileLoopArray = new String[linesInWhileLoop.size()];
+                    linesInWhileLoopArray = linesInWhileLoop.toArray(linesInWhileLoopArray);
+                    while (variables.get(statementParts[1]) != Integer.parseInt(statementParts[3])) {
+                        executeCode(linesInWhileLoopArray);//execute the lines in the while loop until the condition is not satisfied
+                    }
+                    if (removeCounter) {//if the counter variable from the while loop did not already exist, now it is removed
+                        variables.remove(statementParts[1]);
+                    }
+                }
+                default -> throw new RuntimeException("Error on line " + i + " invalid command: " + statement);
+            }
+            for (String currentKey : variables.keySet()) {//output all variables and their value
+                System.out.println("Variable: " + currentKey + " Value: " + variables.get(currentKey));
+            }
+            System.out.println();
+            System.out.println();
+        }
+        for(String variable: localVariables){//remove all local variables from currently accesable variables
+            variables.remove(variable);
+        }
+    }
+
+    /**
+     * Adds or updates the variable into the hashset, if it was already there it returns true, if not it returns false
+     * @param name Name fo the variable to create or update
+     * @param value Value to set or update the variable to
+     * @return Returns true if the variable did not already exist and had to be created, returns false if the variable had already been created
+     */
+    private static boolean addOrUpdateVariable(String name, Integer value){
+        if(variables.containsKey(name)){
+            variables.put(name, value);
+            return false;
+        }
+        else
+        {
+            variables.put(name, value);
+            return true;
+        }
+    }
+
+    /**
+     * Changes a variable by the amount given in the input, if it does not exist, then it adds it to the hashset and sets it to the increment value
+     * @param name The name of the variable to be created or incremented
+     * @param incrementation The amount to change/alter/increment the variable by (or set it to if it doesn't already exist)
+     * @return returns false if the variable already exists, true if it doesn't
+     */
+    private static boolean incrementOrCreateVariable(String name, Integer incrementation){
+        if(variables.containsKey(name)){
+            variables.put(name, variables.get(name) + incrementation);
+            return false;
+        }
+        else
+        {
+            variables.put(name, incrementation);
+            return true;
+        }
+    }
+
+    /**
+     * Creates a bufferedReader object to read a line from the user that is the text file name
+     * @return returns the input that the user has input
+     */
+    public static String getInput(){
+        try {
+            InputStreamReader inputStream = new InputStreamReader(System.in);
+            BufferedReader bufferedReaderInput = new BufferedReader(inputStream);
+            return bufferedReaderInput.readLine();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Reads each line from file and adds each to a string and then returns the string
+     * @param fileName The input is the filename/filepath to be read from
+     * @return Returns the entire string that is read from the file
+     */
+    public static String readFromTextFile(String fileName){
+        String currentLine;
+        StringBuilder fileString = new StringBuilder();
+        try {
+            FileInputStream fileInputStream = new FileInputStream(fileName);
+            InputStreamReader inputStreamReader = new InputStreamReader(fileInputStream);
+            BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+            currentLine = bufferedReader.readLine();
+            while(!(currentLine == null || currentLine.isEmpty())){
+                    fileString.append(currentLine);
+                    currentLine = bufferedReader.readLine();
+            }
+            return fileString.toString();
+        }  catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+}
